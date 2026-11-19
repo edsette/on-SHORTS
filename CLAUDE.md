@@ -21,9 +21,11 @@ O motor de edição é o **Cut-as-Code** em `vendor/cut-as-code` (submódulo Git
 - Respeitar os "Present + STOP": nunca simular uma resposta humana. O modo `agent` só com delegação explícita.
 - Exemplos em bash nos SKILL.md (sobretudo `video-cut`) têm de ser convertidos para PowerShell.
 
-## Motor de Shorts (Fase 6)
+## Motor de Shorts (Fases 6 e 7)
 
-- Comando principal: `.\.venv\Scripts\python.exe scripts\make_shorts.py <vídeo|URL> --name <proj> --count N --duration S --lang pt-BR|pt-PT|en|auto --format 9:16|1:1|4:5|16:9 --style gaming|minimal|viral`
+- **Interface principal:** `/shorts` (skill `.claude/skills/shorts/`) → `.\shorts.cmd --video ... --cortes ... --duracao ... --idioma ... --estilo ...`. Guia: `COMO-USAR.md`. Configuração: `config/shorts.toml`. Resultados: `output/`.
+- Pipeline com estado e retoma: `scripts/shorts_engine/pipeline.py`. Correr o mesmo pedido retoma; `--refazer` recomeça; `--listar` mostra o estado.
+- Interface avançada: `.\.venv\Scripts\python.exe scripts\make_shorts.py <vídeo|URL> --count N --duration S --lang pt-BR|pt-PT|en|auto --format 9:16|1:1|4:5|16:9 --style gaming|minimal|viral`
 - Código em `scripts/shorts_engine/` (select, reframe, captions, render, metadata, source, styles). Documentação: `logs/fase6-motor-shorts.md`.
 - **Nunca publicar automaticamente.** Links só com `--rights-confirmed` (direitos comerciais confirmados pelo utilizador).
 - Usar `--dry-run` para ver a seleção sem renderizar. A análise fica em cache em `projects/<proj>/analysis/`.

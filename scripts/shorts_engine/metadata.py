@@ -80,7 +80,7 @@ def build(clip: Clip, texts: dict, lang: str, style_name: str, source_credit: st
                 tags.append("#" + h)
         tags = tags[:10]
     else:
-        topic = kws[0].capitalize() if kws else ""
+        topic = ""  # sem tema reconhecido: título só com o gancho (evita sufixos fracos)
     title = f"{hook} {emoji}" + (f" | {topic}" if topic and topic.lower() not in hook.lower() else "")
     title = title[:95]
 

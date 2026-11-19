@@ -6,12 +6,20 @@ __pycache__/
 # Node
 node_modules/
 
-# Projetos de vídeo, modelos e caches (grandes / regeneráveis)
+# Projetos de vídeo, resultados, modelos e caches (grandes / regeneráveis)
 projects/
+output/
 models/
 
-# Junctions das skills (recriar com scripts/setup-skills.ps1)
-.claude/skills/
+# Junctions para as skills do vendor (recriar com scripts/setup-skills.ps1).
+# A skill própria .claude/skills/shorts/ É versionada.
+.claude/skills/cut-as-code
+.claude/skills/video-understand
+.claude/skills/video-cut
+.claude/skills/video-to-shorts
+.claude/skills/video-add-captions
+.claude/skills/video-add-content-cards
+.claude/skills/video-edit-compare
 
 # Segredos / configuração local
 .env

@@ -59,13 +59,22 @@ logs/                 Relatórios de cada fase
 - [~] Fase 4 — Transcrição local na GPU e análise de momentos (`logs/fase4-transcricao.md`) — validada em EN, PT pendente
 - [~] Fase 6 — Motor de produção de Shorts (`logs/fase6-motor-shorts.md`) — testado com vídeo sintético, vídeo real pendente
 
+- [x] Fase 7 — Interface simplificada (`logs/fase7-interface.md`)
+
 ## Gerar Shorts
 
-```powershell
-.\.venv\Scripts\python.exe scripts\make_shorts.py <video.mp4> --name <projeto> --count 3 --duration 30 --lang pt-BR --format 9:16 --style gaming
+**Ver [COMO-USAR.md](COMO-USAR.md).** Em resumo: duplo clique em `shorts.cmd`, ou no Claude Code:
+
+```
+/shorts
+Vídeo: C:\videos\gameplay.mp4
+Cortes: 8
+Duração: 45 segundos
+Idioma: Português BR
+Estilo: Gaming dinâmico
 ```
 
-Estilos: `gaming` (dinâmico), `minimal` (minimalista), `viral` (motion graphics). Nada é publicado automaticamente.
+Resultados em `output/<projeto>/<pedido>/export/`. Predefinições em `config/shorts.toml`. Nada é publicado automaticamente.
 
 ## Notas
 
