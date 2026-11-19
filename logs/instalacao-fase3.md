@@ -35,11 +35,32 @@ O teste chama `subprocess.run(["python", ...])`. No Windows, o `python.exe` de u
 - O pipeline normal invoca os scripts diretamente com o Python do `.venv` e não é afetado.
 - Soluções possíveis, ainda não aplicadas: instalar Pillow também no Python global, ou ignorar este teste.
 
+## Modelo Whisper (autorizado pelo utilizador)
+
+| Item | Resultado |
+|---|---|
+| Modelo | `Systran/faster-whisper-medium` (snapshot `08e178d`) |
+| Local | `models/faster-whisper/` (não versionado) |
+| Tamanho | 1 460 MB (`model.bin` 1 457 MB) |
+| Primeiro carregamento | 65 s (inclui download) |
+
+Aviso do `huggingface_hub` sobre symlinks no Windows: inofensivo. Sem symlinks, a cache copia ficheiros em vez de os ligar; com um único modelo não há duplicação. Pode ser silenciado com `HF_HUB_DISABLE_SYMLINKS_WARNING=1`.
+
+### Correção de compatibilidade: PyAV
+
+- `faster-whisper 1.2.1` chama `av.open(..., metadata_errors="ignore")`, argumento que já **não existe no PyAV 19.0.2** (`TypeError`).
+- Testei as versões por ordem decrescente: **`av==18.1.0`** é a mais recente que funciona. Fixada no `.venv` e em `requirements.lock.txt`. `pip check` sem conflitos.
+
+### Teste de ponta a ponta do `transcribe.py` do vendor
+
+- Áudio: frase sintetizada pela voz do Windows (Microsoft David, en-US; não há vozes PT instaladas), 8,5 s, convertida para 16 kHz mono com FFmpeg.
+- Comando: `transcribe.py audio16k.wav transcript medium --lang auto --cache-dir models\faster-whisper`
+- Resultado: exit 0 em **12,0 s** (CPU/int8, com o carregamento do modelo). Língua detetada `en` (p=0,993). 1 segmento, **24 palavras com timestamps**. Texto correto ("…Grand Theft Auto 6 trailer set in Vice City").
+
 ## Pendente
 
 - **HyperFrames 0.9.70** (`npx.cmd --yes hyperframes@0.9.70`): o pré-carregamento foi recusado pelo classificador de permissões do Claude Code. É descarregado automaticamente no 1.º uso das legendas/cards, ou manualmente com:
   ```powershell
   $env:npm_config_cache = "$PWD\models\npm-cache"; npx.cmd --yes hyperframes@0.9.70 --version
   ```
-- **Modelo Whisper `medium` (~1,5 GB)**: aguarda autorização.
 - Primeiro teste de ponta a ponta com um clip curto com voz.

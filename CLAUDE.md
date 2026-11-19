@@ -24,6 +24,8 @@ O motor de edição é o **Cut-as-Code** em `vendor/cut-as-code` (submódulo Git
 ## Transcrição
 
 - `transcribe.py` usa CPU/int8. O modelo por omissão `base.en` é só inglês: usar **`medium --lang auto`** (ou `--lang pt`).
+- Modelo instalado: `medium` (1,46 GB) em `models/faster-whisper`.
+- **Manter `av==18.1.0`**: o PyAV 19 é incompatível com o faster-whisper 1.2.1 (`metadata_errors`). Não atualizar o `av` sem testar.
 - Cache de modelos partilhada: `--cache-dir <raiz-do-repo>\models\faster-whisper`.
 - **Não descarregar modelos novos sem autorização do utilizador** (indicar tamanho e finalidade).
 
