@@ -30,9 +30,9 @@ motor de Shorts (3 estilos, 4 formatos, legendas ASS, NVENC, metadados), interfa
 (alanzoka, GTA 6) com 10/10 critérios. A Fase 5 nunca foi pedida. PT-PT ainda não foi validado com áudio real.
 
 **Decisões do utilizador (2026-11-19):**
-- Curadoria estilo OpusClip (Hook/Flow/Value/Trend, escolha do gancho, verificar se a ideia fecha) será
-  **local**, integrada no `/shorts` → IA local (Ollama + modelo ~7B, ~5 GB, cabe na RTX 4060).
-  **Confirmar o download com o utilizador antes de instalar.**
+- **Sem IA local**: não instalar Ollama nem modelos de linguagem locais (decisão explícita do utilizador).
+  A curadoria estilo OpusClip (Hook/Flow/Value/Trend, gancho, ideia completa), se for feita, passa pelo
+  `/shorts` sem IA local — a forma exata (Claude a escolher entre candidatos no `/shorts`, ou só regras) está por confirmar.
 - **Facecam do streamer é obrigatória em muitos clips**: detetar a webcam (normalmente num canto),
   identificar o rosto e enquadrá-lo no Short (layout dividido: facecam em cima, gameplay em baixo,
   ou facecam sobreposta), quando a fonte tiver webcam.
@@ -42,7 +42,7 @@ motor de Shorts (3 estilos, 4 formatos, legendas ASS, NVENC, metadados), interfa
 1. **Facecam**: análise e proposta (deteção do retângulo da webcam nos cantos + deteção facial local,
    ex. OpenCV com detetor YuNet, gratuito; layouts no `reframe.py`/`render.py`; opção em `shorts.toml`
    e no pedido do `/shorts`). Apresentar o plano e as dependências antes de instalar.
-2. **Curadoria local estilo OpusClip** com Ollama (pedir confirmação do download), score por critério no relatório.
+2. **Curadoria estilo OpusClip sem IA local** (confirmar com o utilizador: Claude no `/shorts` ou regras), score por critério no relatório.
 3. **Dashboard web local** (arquitetura já analisada e aprovada só como proposta: servidor Python stdlib +
    SSE, SPA escura sem build, fila de trabalhos, aprovar/rejeitar clips, monitor CPU/RAM/GPU via ctypes +
    nvidia-smi). Aguarda aprovação para implementar.
