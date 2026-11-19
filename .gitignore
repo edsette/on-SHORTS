@@ -1,0 +1,27 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Node
+node_modules/
+
+# Segredos / configuração local
+.env
+.env.*
+!.env.example
+
+# Media (brutos e renders não vão para o Git)
+*.mp4
+*.mov
+*.mkv
+*.webm
+*.wav
+*.mp3
+*.m4a
+
+# Ficheiros temporários
+*.tmp
+*.log
+Thumbs.db
+desktop.ini
