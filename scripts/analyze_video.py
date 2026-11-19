@@ -96,7 +96,7 @@ def probe(video: Path) -> dict:
         "duration_s": float(info["format"].get("duration", 0)),
         "video": None if not v else {
             "codec": v.get("codec_name"), "width": v.get("width"), "height": v.get("height"),
-            "fps": v.get("avg_frame_rate") or v.get("r_frame_rate"),
+            "fps": v.get("avg_frame_rate") or v.get("r_frame_rate"), "r_fps": v.get("r_frame_rate"),
         },
         "audio": None if not a else {
             "codec": a.get("codec_name"), "sample_rate": a.get("sample_rate"), "channels": a.get("channels"),
@@ -434,80 +434,107 @@ def main() -> None:
     ap.add_argument("--device", default="auto", choices=["auto", "cuda", "cpu"])
     ap.add_argument("--lang", default="auto", help="auto | pt | en | ...")
     ap.add_argument("--variant", default="auto", choices=["auto", "pt-BR", "pt-PT", "en"])
-    ap.add_argument("--scene-threshold", type=float, default=0.35)
+    ap.add_argument("--scene-threshold", type=float, default=0.22)
     ap.add_argument("--no-scenes", action="store_true")
     ap.add_argument("--no-refine", action="store_true", help="não ajustar fronteiras de palavras à energia do áudio")
     args = ap.parse_args()
+    res = run_analysis(args.video, args.out, model_name=args.model, device=args.device, lang=args.lang,
+                       variant=args.variant, scene_threshold=args.scene_threshold, scenes=not args.no_scenes,
+                       refine=not args.no_refine, use_cache=False)
+    a = res["analysis"]
+    print(json.dumps({k: a[k] for k in ("language", "language_probability", "words", "segments",
+                                         "device", "compute_type", "realtime_factor", "timings")},
+                     ensure_ascii=False))
+    print(f"momentos={len(res['moments'])} janelas={len(res['windows'])} -> {args.out}")
 
-    if args.variant in ("pt-BR", "pt-PT") and args.lang == "auto":
-        args.lang = "pt"
-    out = args.out
+
+def run_analysis(video: Path, out: Path, model_name: str = "large-v3-turbo", device: str = "auto",
+                 lang: str = "auto", variant: str = "auto", scene_threshold: float = 0.22,
+                 scenes: bool = True, refine: bool = True, use_cache: bool = True) -> dict:
+    """Análise completa reutilizável. Com use_cache, reaproveita a transcrição se a fonte e o modelo
+    não mudaram (tamanho + mtime + modelo + língua) — evita transcrever o mesmo vídeo duas vezes."""
+    if variant in ("pt-BR", "pt-PT") and lang == "auto":
+        lang = "pt"
+    video = Path(video)
+    out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
+    st = video.stat()
+    fingerprint = {"size": st.st_size, "mtime": int(st.st_mtime), "model": model_name, "lang": lang,
+                   "variant": variant, "refine": refine, "scene_threshold": scene_threshold}
     timings: dict[str, float] = {}
-
-    t = time.time()
-    media = probe(args.video)
-    write_json(out / "media.json", media)
     wav = out / "audio16k.wav"
-    extract_audio(args.video, wav)
+    tpath, apath = out / "transcript.json", out / "analysis.json"
+
+    cached = None
+    if use_cache and tpath.exists() and apath.exists() and wav.exists():
+        prev = json.loads(apath.read_text(encoding="utf-8"))
+        if prev.get("fingerprint") == fingerprint:
+            cached = prev
+
+    t = time.time()
+    media = probe(video)
+    write_json(out / "media.json", media)
+    if cached is None:
+        extract_audio(video, wav)
     timings["probe_extract_s"] = round(time.time() - t, 2)
-
-    t = time.time()
-    model, device, ctype = load_model(args.model, args.device)
-    timings["model_load_s"] = round(time.time() - t, 2)
-
-    transcript, tr_s = transcribe(model, wav, args.lang, args.variant)
-    timings["transcribe_s"] = round(tr_s, 2)
-    transcript["model"] = args.model
-    transcript["device"] = device
-    transcript["compute_type"] = ctype
-    transcript["variant"] = args.variant
     samples, sr = read_wav(wav)
-    transcript["boundary_refined"] = 0 if args.no_refine else refine_boundaries(transcript["segments"], samples, sr)
-    write_json(out / "transcript.json", transcript)
-    srt = [f"{i}\n{fmt_srt(s['start'])} --> {fmt_srt(s['end'])}\n{s['text'].strip()}\n"
-           for i, s in enumerate(transcript["segments"], 1)]
-    (out / "transcript.srt").write_text("\n".join(srt), encoding="utf-8")
 
-    t = time.time()
+    if cached is None:
+        t = time.time()
+        model, dev, ctype = load_model(model_name, device)
+        timings["model_load_s"] = round(time.time() - t, 2)
+        transcript, tr_s = transcribe(model, wav, lang, variant)
+        del model
+        timings["transcribe_s"] = round(tr_s, 2)
+        transcript.update(model=model_name, device=dev, compute_type=ctype, variant=variant)
+        transcript["boundary_refined"] = refine_boundaries(transcript["segments"], samples, sr) if refine else 0
+        write_json(tpath, transcript)
+        srt = [f"{i}\n{fmt_srt(s['start'])} --> {fmt_srt(s['end'])}\n{s['text'].strip()}\n"
+               for i, s in enumerate(transcript["segments"], 1)]
+        (out / "transcript.srt").write_text("\n".join(srt), encoding="utf-8")
+        t = time.time()
+        scene_list = scene_changes(video, scene_threshold) if (scenes and media["video"]) else []
+        timings["scenes_s"] = round(time.time() - t, 2)
+    else:
+        transcript = json.loads(tpath.read_text(encoding="utf-8"))
+        dev, ctype, tr_s = transcript.get("device"), transcript.get("compute_type"), 0.0
+        scene_list = cached.get("scene_changes", [])
+        timings["cache"] = 1
+
     times, db = loudness_curve(samples, sr)
     peaks = loudness_peaks(times, db)
-    scenes = [] if (args.no_scenes or not media["video"]) else scene_changes(args.video, args.scene_threshold)
     turns = speech_turns(transcript["segments"])
-    timings["analysis_s"] = round(time.time() - t, 2)
-
     segs = transcript["segments"]
     units = sentence_units(segs)
-    moments = score_segments(units, peaks, scenes)
+    moments = score_segments(units, peaks, scene_list)
     windows = short_windows(units, moments, media["duration_s"])
     n_words = sum(len(s["words"]) for s in segs)
     speech_s = sum(tn["end"] - tn["start"] for tn in turns)
-    rtf = tr_s / media["duration_s"] if media["duration_s"] else None
+    rtf = tr_s / media["duration_s"] if (media["duration_s"] and tr_s) else None
 
     analysis = {
-        "source": media["path"], "duration_s": media["duration_s"], "language": transcript["language"],
-        "language_probability": transcript["language_probability"], "variant": args.variant,
-        "words": n_words, "segments": len(segs), "speech_s": round(speech_s, 2),
+        "source": media["path"], "fingerprint": fingerprint, "duration_s": media["duration_s"],
+        "language": transcript["language"], "language_probability": transcript["language_probability"],
+        "variant": variant, "words": n_words, "segments": len(segs), "speech_s": round(speech_s, 2),
         "speaking_ratio": round(speech_s / media["duration_s"], 3) if media["duration_s"] else None,
         "mean_word_prob": round(float(np.mean([w["prob"] for s in segs for w in s["words"]])), 3) if n_words else None,
-        "sentences": len(units),
-        "turns": turns, "loudness_peaks": peaks, "scene_changes": scenes,
+        "sentences": len(units), "turns": turns, "loudness_peaks": peaks, "scene_changes": scene_list,
         "loudness_db_0_5s": [round(float(x), 1) for x in db[::2]],
-        "device": device, "compute_type": ctype, "model": args.model,
+        "device": dev, "compute_type": ctype, "model": model_name,
         "timings": timings, "realtime_factor": round(rtf, 3) if rtf else None,
     }
-    write_json(out / "analysis.json", analysis)
+    write_json(apath, analysis)
     write_json(out / "moments.json", {"moments": moments, "short_windows": windows,
-                                      "note": "Heurístico: shortlist para revisão no /video-to-shorts."})
+                                      "note": "Heurístico: shortlist para revisão."})
 
     lines = [
-        f"# Análise — {args.video.name}", "",
+        f"# Análise — {video.name}", "",
         f"- Duração: {media['duration_s']:.1f} s | Língua: {transcript['language']} "
-        f"(p={transcript['language_probability']}) | Variante pedida: {args.variant}",
-        f"- Modelo: {args.model} em {device}/{ctype} | Transcrição: {tr_s:.1f} s (RTF {analysis['realtime_factor']})",
-        f"- Palavras: {n_words} | Segmentos: {len(segs)} | Falas: {len(turns)} | "
+        f"(p={transcript['language_probability']}) | Variante pedida: {variant}",
+        f"- Modelo: {model_name} em {dev}/{ctype} | Transcrição: {tr_s:.1f} s (RTF {analysis['realtime_factor']})",
+        f"- Palavras: {n_words} | Segmentos: {len(segs)} | Frases: {len(units)} | Falas: {len(turns)} | "
         f"Prob. média por palavra: {analysis['mean_word_prob']}",
-        f"- Picos de volume: {len(peaks)} | Cortes de cena: {len(scenes)}", "",
+        f"- Picos de volume: {len(peaks)} | Cortes de cena: {len(scene_list)}", "",
         "## Momentos", "", "| Início | Fim | Categoria | Score | Texto | Sinais |", "|---|---|---|---:|---|---|",
     ]
     for m in moments:
@@ -520,10 +547,9 @@ def main() -> None:
                      f"{w['category']} | {w['score']} |")
     (out / "summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
-    print(json.dumps({k: analysis[k] for k in ("language", "language_probability", "words", "segments",
-                                                "device", "compute_type", "realtime_factor", "timings")},
-                     ensure_ascii=False))
-    print(f"momentos={len(moments)} janelas={len(windows)} -> {out}")
+    return {"media": media, "transcript": transcript, "units": units, "moments": moments,
+            "windows": windows, "analysis": analysis, "peaks": peaks, "scenes": scene_list,
+            "loudness": (times, db)}
 
 
 if __name__ == "__main__":

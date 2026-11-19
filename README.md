@@ -56,7 +56,16 @@ logs/                 Relatórios de cada fase
 - [x] Fase 1 — Diagnóstico do ambiente (`logs/diagnostico-inicial.md`)
 - [x] Fase 2 — Instalação das ferramentas base (`logs/instalacao-fase2.md`)
 - [x] Fase 3 — Análise e instalação do Cut-as-Code (`logs/analise-cut-as-code.md`, `logs/instalacao-fase3.md`)
-- [ ] Fase 4 — Modelo Whisper e primeiro Short de teste
+- [~] Fase 4 — Transcrição local na GPU e análise de momentos (`logs/fase4-transcricao.md`) — validada em EN, PT pendente
+- [~] Fase 6 — Motor de produção de Shorts (`logs/fase6-motor-shorts.md`) — testado com vídeo sintético, vídeo real pendente
+
+## Gerar Shorts
+
+```powershell
+.\.venv\Scripts\python.exe scripts\make_shorts.py <video.mp4> --name <projeto> --count 3 --duration 30 --lang pt-BR --format 9:16 --style gaming
+```
+
+Estilos: `gaming` (dinâmico), `minimal` (minimalista), `viral` (motion graphics). Nada é publicado automaticamente.
 
 ## Notas
 

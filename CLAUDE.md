@@ -21,6 +21,14 @@ O motor de edição é o **Cut-as-Code** em `vendor/cut-as-code` (submódulo Git
 - Respeitar os "Present + STOP": nunca simular uma resposta humana. O modo `agent` só com delegação explícita.
 - Exemplos em bash nos SKILL.md (sobretudo `video-cut`) têm de ser convertidos para PowerShell.
 
+## Motor de Shorts (Fase 6)
+
+- Comando principal: `.\.venv\Scripts\python.exe scripts\make_shorts.py <vídeo|URL> --name <proj> --count N --duration S --lang pt-BR|pt-PT|en|auto --format 9:16|1:1|4:5|16:9 --style gaming|minimal|viral`
+- Código em `scripts/shorts_engine/` (select, reframe, captions, render, metadata, source, styles). Documentação: `logs/fase6-motor-shorts.md`.
+- **Nunca publicar automaticamente.** Links só com `--rights-confirmed` (direitos comerciais confirmados pelo utilizador).
+- Usar `--dry-run` para ver a seleção sem renderizar. A análise fica em cache em `projects/<proj>/analysis/`.
+- Rever sempre `review/<estilo>/short-NN.jpg` e o `report.md` antes de entregar.
+
 ## Transcrição
 
 - **Preferir `scripts/analyze_video.py`** (GPU, `large-v3-turbo`, frases, momentos, timestamps refinados). Gera `transcript.json` no formato canónico do Cut-as-Code, utilizável no lugar do `transcribe.py` do vendor. Ver `logs/fase4-transcricao.md`.
