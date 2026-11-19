@@ -60,6 +60,7 @@ logs/                 Relatórios de cada fase
 - [~] Fase 6 — Motor de produção de Shorts (`logs/fase6-motor-shorts.md`) — testado com vídeo sintético, vídeo real pendente
 
 - [x] Fase 7 — Interface simplificada (`logs/fase7-interface.md`)
+- [x] Fase 8 — Teste de produção com vídeo real PT-BR (`logs/fase8-teste-producao.md`) — 10/10 critérios após correções
 
 ## Gerar Shorts
 

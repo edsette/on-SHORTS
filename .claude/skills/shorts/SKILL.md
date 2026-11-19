@@ -43,6 +43,7 @@ Passa cada valor tal como o utilizador o escreveu (o pipeline percebe acentos, "
 ```
 
 Opções extra quando existirem no pedido: `--formato "<...>"`, `--nome "<...>"`, `--credito "<...>"`,
+`--trecho "<...>"` (só links: ex. "primeiros 30 minutos", "10:00-40:00"; recomendado para lives longas),
 `--direitos` (só depois da confirmação do passo 2). Omite as opções de campos que o utilizador não indicou.
 Não uses `--pedido` com várias linhas (o `cmd.exe` parte o texto nas quebras de linha); se precisares
 do texto completo, grava-o num `.txt` e usa `--pedido-ficheiro <ficheiro>`.

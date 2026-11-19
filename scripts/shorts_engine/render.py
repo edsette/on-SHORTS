@@ -93,7 +93,9 @@ def render_clip(clip: Clip, src: str, media: dict, style: dict, W: int, H: int, 
     for k, p in enumerate(clip.pieces):
         keys = None
         if style["reframe"] == "smart":
-            keys = reframe.motion_centers(src, p.src_start, p.dur, scenes)
+            keys = reframe.motion_centers(src, p.src_start, p.dur, scenes,
+                                          max_offset=style.get("track_offset", 0.12),
+                                          smooth_s=style.get("track_smooth_s", 4.0))
         chain, info = reframe.video_chain(style["reframe"], sw, sh, W, H, keys)
         infos.append(info)
         chain = chain.replace("{IN}", f"[{k}:v]").replace("{OUT}", f",fps={fps},format=yuv420p[v{k}]").replace("{K}", str(k))
@@ -149,9 +151,13 @@ def verify(mp4: Path, W: int, H: int, expected: float) -> dict:
 
 
 def contact_sheet(mp4: Path, out_jpg: Path, D: float, n: int = 6) -> None:
-    """Folha de contacto com n frames distribuídos, para revisão rápida."""
+    """Folha de contacto com n frames distribuídos. Um seek por instante (1 frame cada) — com `select`
+    por intervalo de tempo, a 60 fps vários frames do mesmo instante enchiam a grelha."""
     times = [D * (k + 0.5) / n for k in range(n)]
-    sel = "+".join(f"between(t,{t - 0.02:.2f},{t + 0.02:.2f})" for t in times)
-    subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(mp4),
-                    "-vf", f"select='{sel}',scale=270:-2,tile={n}x1:padding=6:color=white",
-                    "-frames:v", "1", "-update", "1", str(out_jpg)], capture_output=True)
+    cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y"]
+    for t in times:
+        cmd += ["-ss", f"{t:.3f}", "-i", str(mp4)]
+    chains = "".join(f"[{k}:v]trim=end_frame=1,scale=270:-2,pad=iw+6:ih:0:0:white[f{k}];" for k in range(n))
+    graph = chains + "".join(f"[f{k}]" for k in range(n)) + f"hstack=inputs={n}[out]"
+    cmd += ["-filter_complex", graph, "-map", "[out]", "-frames:v", "1", "-update", "1", str(out_jpg)]
+    subprocess.run(cmd, capture_output=True)

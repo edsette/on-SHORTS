@@ -21,7 +21,8 @@ FORMATS = {
 STYLES: dict[str, dict] = {
     "gaming": {
         "label": "Gaming dinâmico",
-        "reframe": "smart",            # crop seguindo o movimento
+        "reframe": "smart",            # crop 9:16; em gameplay 3.ª pessoa fica centrado (track_offset)
+        "track_offset": 0.0,           # 0 = centro fixo (personagem ao centro); até 0.5 = segue o movimento
         "font": "Impact", "font_size": 0.050, "uppercase": True,
         "words_per_caption": 2, "max_chars": 16,
         "primary": WHITE, "outline": BLACK, "outline_w": 0.0045, "shadow": 0.0015,
@@ -50,6 +51,7 @@ STYLES: dict[str, dict] = {
     "viral": {
         "label": "Viral com motion graphics",
         "reframe": "smart",
+        "track_offset": 0.0,
         "font": "Arial Black", "font_size": 0.052, "uppercase": True,
         "words_per_caption": 3, "max_chars": 20,
         "primary": WHITE, "outline": BLACK, "outline_w": 0.005, "shadow": 0.002,

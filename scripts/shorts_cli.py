@@ -73,7 +73,36 @@ KEYS = {
     "name": ["nome", "projeto", "name"],
     "rights": ["direitos", "licenca", "rights", "autorizacao"],
     "credit": ["credito", "creditos", "credit"],
+    "section": ["trecho", "secao", "intervalo", "parte", "section"],
 }
+
+
+def _ts(s: str) -> float:
+    s = s.strip()
+    if ":" in s:
+        parts = [float(p) for p in s.split(":")]
+        sec = 0.0
+        for p in parts:
+            sec = sec * 60 + p
+        return sec
+    return float(s.replace(",", "."))
+
+
+def parse_section(v: str) -> tuple[float, float]:
+    """'primeiros 30 minutos' | '10:00-40:00' | '0-1800' | '1:00:00-1:30:00'"""
+    s = _n(v)
+    m = re.search(r"primeir[oa]s?\s+(\d+(?:[.,]\d+)?)\s*(min|m\b|minutos?|h|horas?|s|seg)", s)
+    if m:
+        x = float(m.group(1).replace(",", "."))
+        unit = m.group(2)
+        mult = 3600 if unit.startswith("h") else (1 if unit.startswith("s") else 60)
+        return (0.0, x * mult)
+    m = re.match(r"^\s*([\d:.,]+)\s*(?:-|a|ate|to)\s*([\d:.,]+)\s*$", s)
+    if m:
+        a, b = _ts(m.group(1)), _ts(m.group(2))
+        if b > a:
+            return (a, b)
+    raise ValueError(f"não percebi o trecho '{v}' (ex.: primeiros 30 minutos, 10:00-40:00)")
 
 
 def parse_duration(v: str) -> float:
@@ -206,6 +235,7 @@ def build_request(fields: dict, cfg: dict, force: bool):
         rights=get("rights", parse_yes, False),
         credit=fields.get("credit") or None,
         force=force,
+        section=get("section", parse_section, None),
     )
     return req, errs
 
@@ -267,6 +297,7 @@ def main() -> int:
     ap.add_argument("--formato")
     ap.add_argument("--nome")
     ap.add_argument("--credito")
+    ap.add_argument("--trecho", help="só para links: parte a descarregar (ex.: 'primeiros 30 minutos', '10:00-40:00')")
     ap.add_argument("--direitos", action="store_true", help="confirmo direitos de utilização comercial (links)")
     ap.add_argument("--refazer", action="store_true", help="recomeçar esta execução do zero")
     ap.add_argument("--listar", action="store_true", help="mostrar projetos e estado")
@@ -286,7 +317,8 @@ def main() -> int:
     if a.pedido:
         fields.update(parse_request_text(a.pedido))
     for k, v in {"video": a.video, "count": a.cortes, "duration": a.duracao, "lang": a.idioma,
-                 "style": a.estilo, "fmt": a.formato, "name": a.nome, "credit": a.credito}.items():
+                 "style": a.estilo, "fmt": a.formato, "name": a.nome, "credit": a.credito,
+                 "section": a.trecho}.items():
         if v:
             fields[k] = v
     if a.direitos:
@@ -308,6 +340,8 @@ def main() -> int:
     print(f"  Vídeo:    {req.source}")
     print(f"  Cortes:   {req.count} × {req.duration:.0f} s")
     print(f"  Idioma:   {req.lang}   Estilo: {STYLES[req.style]['label']}   Formato: {req.fmt}")
+    if req.section:
+        print(f"  Trecho:   {req.section[0]:.0f} s – {req.section[1]:.0f} s")
     print(f"  Pasta:    {out_root / project_slug(req) / run_id(req)}\n")
     if a.simular:
         return 0

@@ -46,6 +46,7 @@ shorts --video "C:\videos\gameplay.mp4" --cortes 8 --duracao "45 segundos" --idi
 | Idioma | `Português BR`, `Brasil`, `Português PT`, `Portugal`, `Inglês`, `auto` |
 | Estilo | `Gaming dinâmico`, `Minimalista`, `Viral` (com motion graphics) |
 | Formato | `9:16` / `vertical` (Shorts, TikTok, Reels), `1:1` / `quadrado`, `4:5`, `16:9` / `horizontal` |
+| Trecho (opcional, links) | `primeiros 30 minutos`, `10:00-40:00`: descarrega só essa parte (útil em lives longas) |
 | Nome (opcional) | nome da pasta do projeto |
 | Crédito (opcional) | texto de fonte/crédito para a descrição |
 

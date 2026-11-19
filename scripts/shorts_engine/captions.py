@@ -155,7 +155,10 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         return t
 
     n_caps = 0
-    for pw in _words_out(clip, all_units):
+    words_out = _words_out(clip, all_units)
+    n_marked = sum(1 for pw in words_out for w in pw if (w["start"], w["end"]) in marks)
+    n_words = sum(len(pw) for pw in words_out)
+    for pw in words_out:
         chunks = _chunks(pw, style["words_per_caption"], style["max_chars"])
         for ci, ch in enumerate(chunks):
             c_start = ch[0]["o_start"]
@@ -202,4 +205,5 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             f"\\t(0,{ms},\\clip(0,0,{W},{H}))}}m 0 0 l {W} 0 {W} {bh} 0 {bh}{{\\p0}}")
 
     out_path.write_text(head + "\n".join(ev) + "\n", encoding="utf-8-sig")
-    return {"captions": n_caps, "events": len(ev), "highlighted_words": len(marks), "font_px": fs}
+    return {"captions": n_caps, "events": len(ev), "words": n_words, "highlighted_words": n_marked,
+            "font_px": fs}

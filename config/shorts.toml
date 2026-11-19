@@ -20,6 +20,8 @@ modelo      = "large-v3-turbo"  # modelo de transcrição (large-v3-turbo na GPU
 dispositivo = "auto"            # auto | cuda (GPU) | cpu
 encoder     = "auto"            # auto (NVENC da RTX, com recurso a x264) | nvenc | x264
 teaser      = true              # abrir os estilos gaming/viral com o momento mais forte
+seguimento_movimento = 0.0      # enquadramento 9:16: 0 = centro fixo (ideal para jogos na 3.ª pessoa);
+                                # 0.1–0.3 = o crop desloca-se para onde há movimento (ex.: vlogs, 1.ª pessoa)
 espaco_minimo_gb = 5            # recusar se houver menos espaço livre em disco
-duracao_min_fator = 0.7         # cada corte fica entre 70%...
-duracao_max_fator = 1.3         # ...e 130% da duração pedida
+duracao_min_fator = 0.85        # cada corte fica entre 85%...
+duracao_max_fator = 1.15        # ...e 115% da duração pedida (ex.: 45 s -> 38 a 52 s)

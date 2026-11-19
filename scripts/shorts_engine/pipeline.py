@@ -63,6 +63,7 @@ class Request:
     rights: bool = False
     credit: str | None = None
     force: bool = False
+    section: tuple[float, float] | None = None  # trecho a descarregar de um link (início, fim em s)
 
 
 def preflight(req: Request) -> None:
@@ -106,7 +107,8 @@ def project_slug(req: Request) -> str:
     if req.name:
         return slugify(req.name)
     if source.is_url(req.source):
-        return "link-" + hashlib.sha1(req.source.strip().encode()).hexdigest()[:8]
+        key = req.source.strip() + (f"#{req.section[0]:.0f}-{req.section[1]:.0f}" if req.section else "")
+        return "link-" + hashlib.sha1(key.encode()).hexdigest()[:8]
     return slugify(Path(req.source).stem)
 
 
@@ -158,7 +160,8 @@ class Runner:
     # ---- estado / log
     def _load_state(self) -> dict:
         params = {"source": self.req.source, "count": self.req.count, "duration": self.req.duration,
-                  "lang": self.req.lang, "style": self.req.style, "format": self.req.fmt}
+                  "lang": self.req.lang, "style": self.req.style, "format": self.req.fmt,
+                  "section": list(self.req.section) if self.req.section else None}
         if self.state_path.exists() and not self.req.force:
             st = json.loads(self.state_path.read_text(encoding="utf-8"))
             if st.get("params") == params:
@@ -258,7 +261,10 @@ class Runner:
         self.stage("ingestao", "a_correr")
         self.say("▶ 1/5 Ingestão…")
         try:
-            self.src, self.prov = source.fetch(req.source, self.proj / "input", req.rights)
+            if source.is_url(req.source) and not source.already_downloaded(self.proj / "input", req.section):
+                self.say("  a descarregar" + (f" o trecho {fmt_secs(req.section[0])}–{fmt_secs(req.section[1])}"
+                                              if req.section else "") + " (pode demorar alguns minutos)…")
+            self.src, self.prov = source.fetch(req.source, self.proj / "input", req.rights, req.section)
         except SystemExit as e:
             raise UserError(str(e), "Verifica o caminho do ficheiro ou o link.") from None
         from analyze_video import probe
@@ -312,12 +318,13 @@ class Runner:
         self.say("▶ 3/5 Seleção dos melhores momentos…")
         style = self._style()
         texts = TEXT[self._ui_lang()]
-        min_len = max(5.0, self.cfg.get("duracao_min_fator", 0.7) * req.duration)
-        max_len = min(180.0, self.cfg.get("duracao_max_fator", 1.3) * req.duration)
+        min_len = max(5.0, self.cfg.get("duracao_min_fator", 0.85) * req.duration)
+        max_len = min(180.0, self.cfg.get("duracao_max_fator", 1.15) * req.duration)
         r = self.res
         self.clips = select.select_clips(r["units"], r["moments"], r["peaks"], r["scenes"],
                                          r["analysis"]["duration_s"], req.count, req.duration, min_len, max_len,
-                                         style["teaser"], texts)
+                                         style["teaser"], texts,
+                                         truncated_end=bool(self.prov.get("section_s")))
         if not self.clips:
             raise UserError("Não foi possível encontrar cortes com esta duração.",
                             "Experimenta uma duração menor ou um vídeo mais longo.")
@@ -361,7 +368,7 @@ class Runner:
                 if not ver["ok"]:
                     raise RuntimeError(f"verificação falhou: {ver}")
                 render.contact_sheet(mp4, review / f"{c.id}.jpg", c.out_duration)
-                meta = metadata.build(c, texts, L, req.style, credit)
+                meta = metadata.build(c, texts, L, req.style, credit, self.prov.get("title"))
                 record = {"id": c.id, "file": mp4.name, "style": req.style, "format": req.fmt, "language": L,
                           "source": self.prov, "source_range": [round(c.start, 3), round(c.end, 3)],
                           "pieces": [asdict(p) for p in c.pieces], "duration_s": round(c.out_duration, 3),
@@ -395,6 +402,8 @@ class Runner:
         s = dict(STYLES[self.req.style])
         if not self.cfg.get("teaser", True):
             s["teaser"] = False
+        if "seguimento_movimento" in self.cfg:
+            s["track_offset"] = max(0.0, min(0.5, float(self.cfg["seguimento_movimento"])))
         return s
 
     def _ui_lang(self) -> str:

@@ -37,6 +37,7 @@ import numpy as np
 
 REPO = Path(__file__).resolve().parents[1]
 MODELS_DIR = REPO / "models" / "faster-whisper"
+SCENE_ALGO = 2  # v2: agrupamento de deteções + limiar adaptativo (Fase 8)
 
 # --------------------------------------------------------------------------- GPU setup
 
@@ -118,10 +119,27 @@ def read_wav(wav: Path) -> tuple[np.ndarray, int]:
     return data, sr
 
 
-def scene_changes(video: Path, threshold: float) -> list[float]:
+def scene_changes(video: Path, threshold: float, duration: float = 0.0, min_gap: float = 1.5,
+                  max_per_min: float = 8.0) -> list[float]:
+    """Cortes de cena com filtro anti-falsos-positivos (essencial em gameplay):
+    - agrupa deteções a menos de `min_gap` s (flashes, movimento rápido de câmara) e fica com a mais forte;
+    - se ainda houver mais de `max_per_min` por minuto, mantém só as de score mais alto (limiar adaptativo)."""
     r = run(["ffmpeg", "-hide_banner", "-nostats", "-i", str(video), "-an",
-             "-vf", f"scale=320:-2,select='gt(scene,{threshold})',showinfo", "-f", "null", "-"])
-    return [round(float(m), 3) for m in re.findall(r"pts_time:([0-9.]+)", r.stderr)]
+             "-vf", f"scale=320:-2,select='gt(scene,{threshold})',metadata=print:key=lavfi.scene_score",
+             "-f", "null", "-"])
+    hits = [(float(t), float(s)) for t, s in
+            re.findall(r"pts_time:([0-9.]+)[^\n]*\n[^\n]*lavfi\.scene_score=([0-9.]+)", r.stderr)]
+    clusters: list[list[tuple[float, float]]] = []
+    for t, s in sorted(hits):
+        if clusters and t - clusters[-1][-1][0] < min_gap:
+            clusters[-1].append((t, s))
+        else:
+            clusters.append([(t, s)])
+    best = [max(c, key=lambda x: x[1]) for c in clusters]
+    if duration and len(best) > max_per_min * duration / 60:
+        keep = int(max_per_min * duration / 60)
+        best = sorted(best, key=lambda x: -x[1])[:keep]
+    return sorted(round(t, 3) for t, _ in best)
 
 
 # --------------------------------------------------------------------------- transcription
@@ -247,14 +265,29 @@ def refine_boundaries(segments: list[dict], samples: np.ndarray, sr: int, min_ga
     return changed
 
 
-def loudness_peaks(times: np.ndarray, db: np.ndarray, min_gap_s: float = 2.0) -> list[dict]:
+def loudness_peaks(times: np.ndarray, db: np.ndarray, min_gap_s: float = 2.0,
+                   local_s: float = 15.0, hop_s: float = 0.25) -> list[dict]:
+    """Picos de volume: globais (z >= 2,5 face ao vídeo inteiro) OU locais (z >= 3 face aos ~15 s à volta
+    e >= 4 dB acima da mediana global). Os locais apanham gritos/explosões em lives com som contínuo,
+    onde o critério global sozinho não encontra nada."""
     voiced = db[db > -60]
     if len(voiced) < 8:
         return []
     med = float(np.median(voiced))
     mad = float(np.median(np.abs(voiced - med))) or 1.0
-    z = (db - med) / (1.4826 * mad)
-    idx = [i for i in np.argsort(-z) if z[i] >= 2.5]
+    zg = (db - med) / (1.4826 * mad)
+    dc = np.maximum(db, -60.0)
+    half = max(4, int(local_s / hop_s / 2))
+    if len(dc) > 2 * half + 1:
+        win = np.lib.stride_tricks.sliding_window_view(np.pad(dc, half, mode="edge"), 2 * half + 1)
+        lmed = np.median(win, axis=1)
+        lmad = np.median(np.abs(win - lmed[:, None]), axis=1)
+        zl = (dc - lmed) / (1.4826 * lmad + 0.5)
+    else:
+        zl = np.zeros_like(dc)
+    local_ok = (zl >= 3.0) & (db >= med + 4.0)
+    z = np.minimum(np.where(local_ok, np.maximum(zg, zl), zg), 10.0)  # evita z absurdos após silêncio
+    idx = [i for i in np.argsort(-z) if zg[i] >= 2.5 or local_ok[i]]
     peaks: list[dict] = []
     for i in idx:
         t = float(times[i])
@@ -465,11 +498,18 @@ def run_analysis(video: Path, out: Path, model_name: str = "large-v3-turbo", dev
     wav = out / "audio16k.wav"
     tpath, apath = out / "transcript.json", out / "analysis.json"
 
+    # A cache da transcrição depende só da fonte e das opções de transcrição; os cortes de cena
+    # têm cache própria (versão do algoritmo + limiar), para não retranscrever quando só mudam as cenas.
+    tkeys = ("size", "mtime", "model", "lang", "variant", "refine")
+    fingerprint["scene_algo"] = SCENE_ALGO
     cached = None
     if use_cache and tpath.exists() and apath.exists() and wav.exists():
         prev = json.loads(apath.read_text(encoding="utf-8"))
-        if prev.get("fingerprint") == fingerprint:
+        pfp = prev.get("fingerprint") or {}
+        if all(pfp.get(k) == fingerprint[k] for k in tkeys):
             cached = prev
+            if (pfp.get("scene_threshold"), pfp.get("scene_algo")) != (scene_threshold, SCENE_ALGO):
+                cached["scene_changes"] = None  # recalcular só as cenas
 
     t = time.time()
     media = probe(video)
@@ -493,12 +533,18 @@ def run_analysis(video: Path, out: Path, model_name: str = "large-v3-turbo", dev
                for i, s in enumerate(transcript["segments"], 1)]
         (out / "transcript.srt").write_text("\n".join(srt), encoding="utf-8")
         t = time.time()
-        scene_list = scene_changes(video, scene_threshold) if (scenes and media["video"]) else []
+        scene_list = (scene_changes(video, scene_threshold, media["duration_s"])
+                      if (scenes and media["video"]) else [])
         timings["scenes_s"] = round(time.time() - t, 2)
     else:
         transcript = json.loads(tpath.read_text(encoding="utf-8"))
         dev, ctype, tr_s = transcript.get("device"), transcript.get("compute_type"), 0.0
-        scene_list = cached.get("scene_changes", [])
+        scene_list = cached.get("scene_changes")
+        if scene_list is None:
+            t = time.time()
+            scene_list = (scene_changes(video, scene_threshold, media["duration_s"])
+                          if (scenes and media["video"]) else [])
+            timings["scenes_s"] = round(time.time() - t, 2)
         timings["cache"] = 1
 
     times, db = loudness_curve(samples, sr)

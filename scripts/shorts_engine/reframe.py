@@ -22,8 +22,13 @@ def _decode_gray(src: str, start: float, dur: float, fps: int = 4) -> np.ndarray
     return np.frombuffer(raw[: n * AW * AH], dtype=np.uint8).reshape(n, AH, AW).astype(np.float32)
 
 
-def motion_centers(src: str, start: float, dur: float, scene_times: list[float], fps: int = 4) -> list[tuple[float, float]]:
-    """Devolve keyframes (t relativo, centro x normalizado 0-1)."""
+def motion_centers(src: str, start: float, dur: float, scene_times: list[float], fps: int = 4,
+                   max_offset: float = 0.12, smooth_s: float = 4.0) -> list[tuple[float, float]]:
+    """Devolve keyframes (t relativo, centro x normalizado 0-1).
+
+    Modo gameplay: em jogos na 3.ª pessoa a personagem está perto do centro e quase tudo o resto
+    (câmara, folhagem, trânsito) também se move. Por isso o centro de movimento só desloca o crop até
+    `max_offset` (fração da largura) a partir do centro, com suavização longa. max_offset=0.5 = livre."""
     frames = _decode_gray(src, start, dur, fps)
     if len(frames) < 3:
         return [(0.0, 0.5)]
@@ -53,7 +58,8 @@ def motion_centers(src: str, start: float, dur: float, scene_times: list[float],
             continue
         fill = np.nanmedian(seg) if np.isfinite(seg).any() else 0.5
         seg = np.where(np.isfinite(seg), seg, fill)
-        k = min(len(seg), 2 * fps + 1)      # ~2 s de janela
+        seg = 0.5 + np.clip(seg - 0.5, -max_offset, max_offset)
+        k = min(len(seg), int(smooth_s * fps) | 1)  # janela de suavização (ímpar)
         sm = np.convolve(np.pad(seg, (k // 2, k // 2), mode="edge"), np.ones(k) / k, mode="valid")
         ts = times[m]
         if out:
