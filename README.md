@@ -32,17 +32,31 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 ```
 
+Depois de clonar este repositório:
+
+```powershell
+git submodule update --init
+.\.venv\Scripts\python.exe -m pip install -r requirements.lock.txt
+powershell -ExecutionPolicy Bypass -File scripts\setup-skills.ps1
+```
+
 ## Estrutura
 
 ```
-logs/        Relatórios de diagnóstico e instalação de cada fase
+vendor/cut-as-code/   Motor de edição (submódulo, não editar)
+.claude/skills/       Junctions para as skills do vendor (geradas, não versionadas)
+scripts/              Scripts próprios (setup-skills.ps1, …)
+projects/             Projetos de vídeo (não versionados)
+models/               Modelos e caches (não versionados)
+logs/                 Relatórios de cada fase
 ```
 
 ## Estado
 
 - [x] Fase 1 — Diagnóstico do ambiente (`logs/diagnostico-inicial.md`)
 - [x] Fase 2 — Instalação das ferramentas base (`logs/instalacao-fase2.md`)
-- [ ] Fase 3 — Pipeline de produção
+- [x] Fase 3 — Análise e instalação do Cut-as-Code (`logs/analise-cut-as-code.md`, `logs/instalacao-fase3.md`)
+- [ ] Fase 4 — Modelo Whisper e primeiro Short de teste
 
 ## Notas
 

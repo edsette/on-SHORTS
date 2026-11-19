@@ -6,6 +6,13 @@ __pycache__/
 # Node
 node_modules/
 
+# Projetos de vídeo, modelos e caches (grandes / regeneráveis)
+projects/
+models/
+
+# Junctions das skills (recriar com scripts/setup-skills.ps1)
+.claude/skills/
+
 # Segredos / configuração local
 .env
 .env.*
